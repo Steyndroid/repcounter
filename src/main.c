@@ -39,18 +39,31 @@ void mode_switch_event_cb(lv_event_t *e)
         if (weight_bar)
             lv_obj_clear_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
         if (kg_value_label)
-            lv_label_set_text(kg_value_label, "15"); // Example value
+            lv_label_set_text(kg_value_label, "15"); // Example value for ADP mode
     }
     else
     {
         // CNS mode
         if (kg_slider)
+        {
+            lv_slider_set_value(kg_slider, 0, LV_ANIM_OFF); // Reset slider to 0
             lv_obj_clear_flag(kg_slider, LV_OBJ_FLAG_HIDDEN);
+        }
         if (weight_bar)
             lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
         if (kg_value_label)
-            lv_label_set_text(kg_value_label, "0");
+            lv_label_set_text(kg_value_label, "0"); // Set label to "0"
     }
+}
+
+static void kg_slider_event_cb(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_target(e);
+    lv_obj_t *label = (lv_obj_t *)lv_event_get_user_data(e);
+    int32_t value = lv_slider_get_value(slider);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d", (int)value);
+    lv_label_set_text(label, buf);
 }
 
 void app_main(void)
@@ -143,6 +156,9 @@ void app_main(void)
     lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_INDICATOR); // Green filled track
     lv_obj_set_style_bg_opa(kg_slider, LV_OPA_COVER, LV_PART_INDICATOR);             // Full opacity
     lv_obj_align(kg_slider, LV_ALIGN_CENTER, 0, 0);
+    
+    // Add the event callback here
+    lv_obj_add_event_cb(kg_slider, kg_slider_event_cb, LV_EVENT_VALUE_CHANGED, kg_value_label);
 
     // ADP Mode: Vertical Weight Indicator Bar (0 to 30)
     lv_obj_t *weight_bar = lv_bar_create(main_screen);
