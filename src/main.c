@@ -103,42 +103,45 @@ void app_main(void)
     lv_obj_t *cns_label = lv_label_create(main_screen);
     lv_label_set_text(cns_label, "CNS");
     lv_obj_set_style_text_color(cns_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(cns_label, &lv_font_montserrat_36, LV_PART_MAIN); // Larger font
-    lv_obj_align(cns_label, LV_ALIGN_BOTTOM_MID, -100, -50);                     // Left of switch
+    lv_obj_set_style_text_font(cns_label, &lv_font_montserrat_36, LV_PART_MAIN);
+    lv_obj_align(cns_label, LV_ALIGN_BOTTOM_MID, -100, -50);
 
     lv_obj_t *mode_switch = lv_switch_create(main_screen);
     lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_KNOB); // Set switch knob to slider knob green
     lv_obj_set_size(mode_switch, 100, 40);
     lv_obj_align(mode_switch, LV_ALIGN_BOTTOM_MID, 0, -50);
 
     lv_obj_t *adp_label = lv_label_create(main_screen);
     lv_label_set_text(adp_label, "ADP");
     lv_obj_set_style_text_color(adp_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(adp_label, &lv_font_montserrat_36, LV_PART_MAIN); // Larger font
-    lv_obj_align(adp_label, LV_ALIGN_BOTTOM_MID, 100, -50);                      // Right of switch
+    lv_obj_set_style_text_font(adp_label, &lv_font_montserrat_36, LV_PART_MAIN);
+    lv_obj_align(adp_label, LV_ALIGN_BOTTOM_MID, 100, -50);
 
     // KG Label (left side, above value)
     lv_obj_t *kg_label = lv_label_create(main_screen);
     lv_label_set_text(kg_label, "KG");
     lv_obj_set_style_text_color(kg_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(kg_label, &lv_font_montserrat_48, LV_PART_MAIN); // Larger font
+    lv_obj_set_style_text_font(kg_label, &lv_font_montserrat_48, LV_PART_MAIN);
     lv_obj_set_pos(kg_label, 200, 230);
 
     // KG Value Label (below "KG")
     lv_obj_t *kg_value_label = lv_label_create(main_screen);
     lv_label_set_text(kg_value_label, "0");
     lv_obj_set_style_text_color(kg_value_label, lv_color_hex(0xBCD24B), LV_PART_MAIN);
-    lv_obj_set_style_text_font(kg_value_label, &lv_font_montserrat_48, LV_PART_MAIN); // Adjusted to 48 for ~7-8mm height
+    lv_obj_set_style_text_font(kg_value_label, &lv_font_montserrat_48, LV_PART_MAIN);
     lv_obj_set_pos(kg_value_label, 200, 280);
 
     // CNS Mode: Vertical Slider (0 to 30)
     ESP_LOGI(TAG, "Adding KG slider");
     lv_obj_t *kg_slider = lv_slider_create(main_screen);
     lv_slider_set_range(kg_slider, 0, 30);
-    lv_obj_set_size(kg_slider, 20, 300); // Vertical
-    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0x87A2AB), LV_PART_MAIN);
+    lv_obj_set_size(kg_slider, 20, 300);
+    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0x87A2AB), LV_PART_MAIN); // Track already matches switch
     lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_INDICATOR); // Green filled track
+    lv_obj_set_style_bg_opa(kg_slider, LV_OPA_COVER, LV_PART_INDICATOR);             // Full opacity
     lv_obj_align(kg_slider, LV_ALIGN_CENTER, 0, 0);
 
     // ADP Mode: Vertical Weight Indicator Bar (0 to 30)
@@ -147,7 +150,7 @@ void app_main(void)
     lv_bar_set_value(weight_bar, 15, LV_ANIM_OFF);
     lv_obj_set_size(weight_bar, 20, 300);
     lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0xBCD24B), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0x87A2AB), LV_PART_INDICATOR);
     lv_obj_align(weight_bar, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
 
@@ -156,14 +159,14 @@ void app_main(void)
     lv_obj_t *rep_label = lv_label_create(main_screen);
     lv_label_set_text(rep_label, "REPS");
     lv_obj_set_style_text_color(rep_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(rep_label, &lv_font_montserrat_48, LV_PART_MAIN); // Larger font
+    lv_obj_set_style_text_font(rep_label, &lv_font_montserrat_48, LV_PART_MAIN);
     lv_obj_set_pos(rep_label, 700, 230);
 
     // Rep Value Label (below "REPS")
     lv_obj_t *rep_value_label = lv_label_create(main_screen);
     lv_label_set_text(rep_value_label, "0");
     lv_obj_set_style_text_color(rep_value_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(rep_value_label, &lv_font_montserrat_48, LV_PART_MAIN); // Adjusted to 48 for ~7-8mm height
+    lv_obj_set_style_text_font(rep_value_label, &lv_font_montserrat_48, LV_PART_MAIN);
     lv_obj_set_pos(rep_value_label, 700, 280);
 
     // Link objects for mode switch callback
