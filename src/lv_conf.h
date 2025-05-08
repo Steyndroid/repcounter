@@ -16,6 +16,7 @@
 
 #ifndef LV_CONF_H
 #define LV_CONF_H
+#define LV_FONT_MONTSERRAT_72 1
 
 #include <stdint.h>
 
@@ -378,9 +379,9 @@
 #define LV_FONT_MONTSERRAT_36 1
 #define LV_FONT_MONTSERRAT_38 1
 #define LV_FONT_MONTSERRAT_40 1
-#define LV_FONT_MONTSERRAT_42 1
-#define LV_FONT_MONTSERRAT_44 1
-#define LV_FONT_MONTSERRAT_46 1
+#define LV_FONT_MONTSERRAT_42 0
+#define LV_FONT_MONTSERRAT_44 0
+#define LV_FONT_MONTSERRAT_46 0
 #define LV_FONT_MONTSERRAT_48 1
 
 /*Demonstrate special features*/

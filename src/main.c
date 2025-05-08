@@ -9,7 +9,7 @@
 #include "display/esp32_s3.h"
 #include "display/matouch_7inch_1024x600.h"
 #include "task/counter_task.h"
-
+#include "lvgl/lv_font_montserrat_72.h"
 static const char *TAG = "MAIN";
 
 // LVGL mutex (from your original main.c and esp32_s3.c)
@@ -90,7 +90,7 @@ void app_main(void)
 
     lv_obj_t *splash_img = lv_img_create(splash_screen);
     lv_img_set_src(splash_img, &helbur_splash);
-    lv_obj_set_pos(splash_img, (LCD_WIDTH - 800) / 2, (LCD_HEIGHT - 139) / 2);
+    lv_obj_set_pos(splash_img, (LCD_WIDTH - 400) / 2, (LCD_HEIGHT - 70) / 2);
 
     ESP_LOGI(TAG, "Loading splash screen");
     lv_scr_load(splash_screen);
@@ -106,44 +106,45 @@ void app_main(void)
     lv_obj_t *main_screen = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(main_screen, lv_color_hex(0x223A44), LV_PART_MAIN);
 
-    // Helbur logo (100x17), at (60, 60)
+    // Helbur logo (100x17), at (50, 50)
     ESP_LOGI(TAG, "Adding small logo");
     lv_obj_t *small_logo = lv_img_create(main_screen);
     lv_img_set_src(small_logo, &helbur_small);
-    lv_obj_set_pos(small_logo, 60, 60);
+    lv_obj_set_pos(small_logo, 50, 50);
 
     // Toggle switch with "CNS" and "ADP" labels on either side
     lv_obj_t *cns_label = lv_label_create(main_screen);
     lv_label_set_text(cns_label, "CNS");
     lv_obj_set_style_text_color(cns_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(cns_label, &lv_font_montserrat_36, LV_PART_MAIN);
-    lv_obj_align(cns_label, LV_ALIGN_BOTTOM_MID, -100, -50);
+    lv_obj_set_style_text_font(cns_label, &lv_font_montserrat_30, LV_PART_MAIN);
+    lv_obj_set_pos(cns_label, 620, 50); // Left of switch, 50px from top
 
     lv_obj_t *mode_switch = lv_switch_create(main_screen);
-    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0x87A2AB), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0x2E4E5C), LV_PART_MAIN);
+    // lv_obj_set_style_bg_opa(mode_switch, LV_OPA_10, LV_PART_MAIN); // 10% transparent
     lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_INDICATOR | LV_STATE_CHECKED);
-    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_KNOB); // Set switch knob to slider knob green
-    lv_obj_set_size(mode_switch, 100, 40);
-    lv_obj_align(mode_switch, LV_ALIGN_BOTTOM_MID, 0, -50);
+    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_KNOB); // Switch knob green
+    lv_obj_set_size(mode_switch, 80, 30);
+    lv_obj_set_pos(mode_switch, 703, 53); // Center at x=700 (650 + 100/2), 50px from top
 
     lv_obj_t *adp_label = lv_label_create(main_screen);
     lv_label_set_text(adp_label, "ADP");
     lv_obj_set_style_text_color(adp_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(adp_label, &lv_font_montserrat_36, LV_PART_MAIN);
-    lv_obj_align(adp_label, LV_ALIGN_BOTTOM_MID, 100, -50);
+    lv_obj_set_style_text_font(adp_label, &lv_font_montserrat_30, LV_PART_MAIN);
+    lv_obj_set_pos(adp_label, 810, 50); // Right of switch, 50px from top
 
     // KG Label (left side, above value)
     lv_obj_t *kg_label = lv_label_create(main_screen);
     lv_label_set_text(kg_label, "KG");
     lv_obj_set_style_text_color(kg_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(kg_label, &lv_font_montserrat_48, LV_PART_MAIN);
-    lv_obj_set_pos(kg_label, 200, 230);
+    lv_obj_set_style_text_font(kg_label, &lv_font_montserrat_72, LV_PART_MAIN);
+    lv_obj_set_pos(kg_label, 200, 200);
 
     // KG Value Label (below "KG")
     lv_obj_t *kg_value_label = lv_label_create(main_screen);
     lv_label_set_text(kg_value_label, "0");
     lv_obj_set_style_text_color(kg_value_label, lv_color_hex(0xBCD24B), LV_PART_MAIN);
-    lv_obj_set_style_text_font(kg_value_label, &lv_font_montserrat_48, LV_PART_MAIN);
+    lv_obj_set_style_text_font(kg_value_label, &lv_font_montserrat_72, LV_PART_MAIN);
     lv_obj_set_pos(kg_value_label, 200, 280);
 
     // CNS Mode: Vertical Slider (0 to 30)
@@ -156,7 +157,7 @@ void app_main(void)
     lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_INDICATOR); // Green filled track
     lv_obj_set_style_bg_opa(kg_slider, LV_OPA_COVER, LV_PART_INDICATOR);             // Full opacity
     lv_obj_align(kg_slider, LV_ALIGN_CENTER, 0, 0);
-    
+
     // Add the event callback here
     lv_obj_add_event_cb(kg_slider, kg_slider_event_cb, LV_EVENT_VALUE_CHANGED, kg_value_label);
 
@@ -175,14 +176,14 @@ void app_main(void)
     lv_obj_t *rep_label = lv_label_create(main_screen);
     lv_label_set_text(rep_label, "REPS");
     lv_obj_set_style_text_color(rep_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(rep_label, &lv_font_montserrat_48, LV_PART_MAIN);
-    lv_obj_set_pos(rep_label, 700, 230);
+    lv_obj_set_style_text_font(rep_label, &lv_font_montserrat_72, LV_PART_MAIN);
+    lv_obj_set_pos(rep_label, 700, 200);
 
     // Rep Value Label (below "REPS")
     lv_obj_t *rep_value_label = lv_label_create(main_screen);
     lv_label_set_text(rep_value_label, "0");
     lv_obj_set_style_text_color(rep_value_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_text_font(rep_value_label, &lv_font_montserrat_48, LV_PART_MAIN);
+    lv_obj_set_style_text_font(rep_value_label, &lv_font_montserrat_72, LV_PART_MAIN);
     lv_obj_set_pos(rep_value_label, 700, 280);
 
     // Link objects for mode switch callback
