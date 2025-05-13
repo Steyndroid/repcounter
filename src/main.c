@@ -10,9 +10,11 @@
 #include "display/matouch_7inch_1024x600.h"
 #include "task/counter_task.h"
 #include "lvgl/lv_font_montserrat_72.h"
+#include "driver/uart.h"
+
 static const char *TAG = "MAIN";
 
-// LVGL mutex (from your original main.c and esp32_s3.c)
+// LVGL mutex (from esp32_s3.c)
 extern SemaphoreHandle_t lvgl_mux;
 
 // Display configuration (from matouch_7inch_1024x600.h)
@@ -31,6 +33,7 @@ void mode_switch_event_cb(lv_event_t *e)
     lv_obj_t *kg_value_label = kg_slider ? kg_slider->user_data : NULL;
     lv_obj_t *weight_bar = kg_value_label ? kg_value_label->user_data : NULL;
 
+    xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
     if (lv_obj_has_state(mode_switch, LV_STATE_CHECKED))
     {
         // ADP mode
@@ -39,7 +42,17 @@ void mode_switch_event_cb(lv_event_t *e)
         if (weight_bar)
             lv_obj_clear_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
         if (kg_value_label)
-            lv_label_set_text(kg_value_label, "15"); // Example value for ADP mode
+        {
+            int32_t bar_value = weight_bar ? lv_bar_get_value(weight_bar) : 15;
+            char buf[8];
+            snprintf(buf, sizeof(buf), "%d", (int)bar_value);
+            lv_label_set_text(kg_value_label, buf);
+        }
+        // Placeholder: Send ADP mode to Arduino
+        char buf[32];
+        snprintf(buf, sizeof(buf), "MODE:ADP\n");
+        uart_write_bytes(UART_NUM_1, buf, strlen(buf));
+        ESP_LOGI(TAG, "Switched to ADP mode");
     }
     else
     {
@@ -52,10 +65,22 @@ void mode_switch_event_cb(lv_event_t *e)
         if (weight_bar)
             lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
         if (kg_value_label)
-            lv_label_set_text(kg_value_label, "0"); // Set label to "0"
+        {
+            int32_t slider_value = kg_slider ? lv_slider_get_value(kg_slider) : 0;
+            char buf[8];
+            snprintf(buf, sizeof(buf), "%d", (int)slider_value);
+            lv_label_set_text(kg_value_label, buf);
+        }
+        // Placeholder: Send CNS mode to Arduino
+        char buf[32];
+        snprintf(buf, sizeof(buf), "MODE:CNS\n");
+        uart_write_bytes(UART_NUM_1, buf, strlen(buf));
+        ESP_LOGI(TAG, "Switched to CNS mode");
     }
+    xSemaphoreGiveRecursive(lvgl_mux);
 }
 
+// Slider event callback
 static void kg_slider_event_cb(lv_event_t *e)
 {
     lv_obj_t *slider = lv_event_get_target(e);
@@ -63,13 +88,32 @@ static void kg_slider_event_cb(lv_event_t *e)
     int32_t value = lv_slider_get_value(slider);
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", (int)value);
+    xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
     lv_label_set_text(label, buf);
+    xSemaphoreGiveRecursive(lvgl_mux);
+    // Placeholder: Send weight to Arduino
+    char uart_buf[32];
+    snprintf(uart_buf, sizeof(uart_buf), "WEIGHT:%ld\n", value);
+    uart_write_bytes(UART_NUM_1, uart_buf, strlen(uart_buf));
+    ESP_LOGI(TAG, "Weight set to %ld kg", value);
 }
 
 void app_main(void)
 {
     printf("Starting app_main\n");
     ESP_LOGI(TAG, "Starting app_main");
+
+    // Initialize UART for Arduino communication
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+    };
+    uart_param_config(UART_NUM_1, &uart_config);
+    uart_set_pin(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE); // TX: GPIO17, RX: GPIO18
+    uart_driver_install(UART_NUM_1, 256, 256, 0, NULL, 0);
 
     display_init();
 
@@ -121,8 +165,7 @@ void app_main(void)
 
     lv_obj_t *mode_switch = lv_switch_create(main_screen);
     lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0x2E4E5C), LV_PART_MAIN);
-    // lv_obj_set_style_bg_opa(mode_switch, LV_OPA_10, LV_PART_MAIN); // 10% transparent
-    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0x2E4E5C), LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_KNOB); // Switch knob green
     lv_obj_set_size(mode_switch, 80, 30);
     lv_obj_set_pos(mode_switch, 703, 53); // Center at x=700 (650 + 100/2), 50px from top
@@ -152,10 +195,10 @@ void app_main(void)
     lv_obj_t *kg_slider = lv_slider_create(main_screen);
     lv_slider_set_range(kg_slider, 0, 30);
     lv_obj_set_size(kg_slider, 20, 300);
-    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0x87A2AB), LV_PART_MAIN); // Track already matches switch
+    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_KNOB);
-    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_INDICATOR); // Green filled track
-    lv_obj_set_style_bg_opa(kg_slider, LV_OPA_COVER, LV_PART_INDICATOR);             // Full opacity
+    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(kg_slider, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_align(kg_slider, LV_ALIGN_CENTER, 0, 0);
 
     // Add the event callback here
@@ -166,9 +209,9 @@ void app_main(void)
     lv_bar_set_range(weight_bar, 0, 30);
     lv_bar_set_value(weight_bar, 15, LV_ANIM_OFF);
     lv_obj_set_size(weight_bar, 20, 300);
-    lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0x87A2AB), LV_PART_INDICATOR);
-    lv_obj_align(weight_bar, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0xBCD24B), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0xBCD24B), LV_PART_INDICATOR);
+    lv_obj_align(weight_bar, LV_ALIGN_BOTTOM_MID, 0, -100);
     lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
 
     // Rep Counter Label (right side, aligned with "KG")
@@ -200,13 +243,41 @@ void app_main(void)
     ESP_LOGI(TAG, "Entering main loop");
     while (1)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        // Serial data parsing for rep counts and ADP effort
+        char rx_buf[64];
+        int len = uart_read_bytes(UART_NUM_1, (uint8_t *)rx_buf, sizeof(rx_buf) - 1, 20 / portTICK_PERIOD_MS);
+        if (len > 0)
+        {
+            rx_buf[len] = '\0';
+            xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
+            // Parse rep counts (e.g., "REPS:5")
+            int reps;
+            if (sscanf(rx_buf, "REPS:%d", &reps) == 1)
+            {
+                char buf[8];
+                snprintf(buf, sizeof(buf), "%d", reps);
+                lv_label_set_text(rep_value_label, buf);
+            }
+            // Parse ADP effort (e.g., "EFFORT:25")
+            if (lv_obj_has_state(mode_switch, LV_STATE_CHECKED))
+            {
+                int effort;
+                if (sscanf(rx_buf, "EFFORT:%d", &effort) == 1)
+                {
+                    lv_bar_set_value(weight_bar, effort, LV_ANIM_ON);
+                    char buf[8];
+                    snprintf(buf, sizeof(buf), "%d", effort);
+                    lv_label_set_text(kg_value_label, buf);
+                }
+            }
+            xSemaphoreGiveRecursive(lvgl_mux);
+        }
+        vTaskDelay(pdMS_TO_TICKS(10)); // Responsive updates
     }
 }
 
 void display_init(void)
 {
-    // Directly call the existing display initialization functions
     ESP_LOGI(TAG, "Calling init_display");
     init_display();
     ESP_LOGI(TAG, "Calling set_backlight_brightness");
@@ -216,7 +287,5 @@ void display_init(void)
 
 void lvgl_init(void)
 {
-    // This function is already handled by init_display() in esp32_s3.c
-    // init_display() calls init_lvgl(), which sets up LVGL, the display driver, and the input device driver
     ESP_LOGI(TAG, "LVGL initialized (via init_display)");
 }

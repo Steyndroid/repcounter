@@ -314,7 +314,7 @@ static void touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 
         /*Set the coordinates*/
         data->point.x = touchpad_x;
-        data->point.y = touchpad_y - 100;  // Adjust for vertical offset
+        data->point.y = touchpad_y - 50;  // Adjust for vertical offset
     }
 }
 
