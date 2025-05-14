@@ -23,7 +23,24 @@ extern SemaphoreHandle_t lvgl_mux;
 
 // Function prototypes
 void display_init(void);
-void lvgl_init(void);
+
+// Slider (Arc) event callback
+static void kg_slider_event_cb(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_target(e);
+    lv_obj_t *label = (lv_obj_t *)lv_event_get_user_data(e);
+    int32_t value = lv_arc_get_value(slider);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d", (int)value);
+    xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
+    lv_label_set_text(label, buf);
+    xSemaphoreGiveRecursive(lvgl_mux);
+    // Placeholder: Send weight to Arduino
+    char uart_buf[32];
+    snprintf(uart_buf, sizeof(uart_buf), "WEIGHT:%ld\n", value);
+    uart_write_bytes(UART_NUM_1, uart_buf, strlen(uart_buf));
+    ESP_LOGI(TAG, "Weight set to %ld kg", value);
+}
 
 // Toggle switch callback
 void mode_switch_event_cb(lv_event_t *e)
@@ -31,7 +48,7 @@ void mode_switch_event_cb(lv_event_t *e)
     lv_obj_t *mode_switch = lv_event_get_target(e);
     lv_obj_t *kg_slider = (lv_obj_t *)lv_event_get_user_data(e);
     lv_obj_t *kg_value_label = kg_slider ? kg_slider->user_data : NULL;
-    lv_obj_t *weight_bar = kg_value_label ? kg_value_label->user_data : NULL;
+    lv_obj_t *weight_bar = kg_value_label ? kg_value_label->user_data : NULL; // lv_arc
 
     xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
     if (lv_obj_has_state(mode_switch, LV_STATE_CHECKED))
@@ -43,7 +60,7 @@ void mode_switch_event_cb(lv_event_t *e)
             lv_obj_clear_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
         if (kg_value_label)
         {
-            int32_t bar_value = weight_bar ? lv_bar_get_value(weight_bar) : 15;
+            int32_t bar_value = weight_bar ? lv_arc_get_value(weight_bar) : 15;
             char buf[8];
             snprintf(buf, sizeof(buf), "%d", (int)bar_value);
             lv_label_set_text(kg_value_label, buf);
@@ -59,14 +76,14 @@ void mode_switch_event_cb(lv_event_t *e)
         // CNS mode
         if (kg_slider)
         {
-            lv_slider_set_value(kg_slider, 0, LV_ANIM_OFF); // Reset slider to 0
+            lv_arc_set_value(kg_slider, 0); // Reset arc to 0
             lv_obj_clear_flag(kg_slider, LV_OBJ_FLAG_HIDDEN);
         }
         if (weight_bar)
             lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
         if (kg_value_label)
         {
-            int32_t slider_value = kg_slider ? lv_slider_get_value(kg_slider) : 0;
+            int32_t slider_value = kg_slider ? lv_arc_get_value(kg_slider) : 0;
             char buf[8];
             snprintf(buf, sizeof(buf), "%d", (int)slider_value);
             lv_label_set_text(kg_value_label, buf);
@@ -80,24 +97,6 @@ void mode_switch_event_cb(lv_event_t *e)
     xSemaphoreGiveRecursive(lvgl_mux);
 }
 
-// Slider event callback
-static void kg_slider_event_cb(lv_event_t *e)
-{
-    lv_obj_t *slider = lv_event_get_target(e);
-    lv_obj_t *label = (lv_obj_t *)lv_event_get_user_data(e);
-    int32_t value = lv_slider_get_value(slider);
-    char buf[8];
-    snprintf(buf, sizeof(buf), "%d", (int)value);
-    xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
-    lv_label_set_text(label, buf);
-    xSemaphoreGiveRecursive(lvgl_mux);
-    // Placeholder: Send weight to Arduino
-    char uart_buf[32];
-    snprintf(uart_buf, sizeof(uart_buf), "WEIGHT:%ld\n", value);
-    uart_write_bytes(UART_NUM_1, uart_buf, strlen(uart_buf));
-    ESP_LOGI(TAG, "Weight set to %ld kg", value);
-}
-
 void app_main(void)
 {
     printf("Starting app_main\n");
@@ -109,17 +108,12 @@ void app_main(void)
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
-    };
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE};
     uart_param_config(UART_NUM_1, &uart_config);
     uart_set_pin(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE); // TX: GPIO17, RX: GPIO18
     uart_driver_install(UART_NUM_1, 256, 256, 0, NULL, 0);
 
     display_init();
-
-    xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
-    lvgl_init();
-    xSemaphoreGiveRecursive(lvgl_mux);
 
     xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
     ESP_LOGI(TAG, "Setting background color");
@@ -161,20 +155,24 @@ void app_main(void)
     lv_label_set_text(cns_label, "CNS");
     lv_obj_set_style_text_color(cns_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_text_font(cns_label, &lv_font_montserrat_30, LV_PART_MAIN);
-    lv_obj_set_pos(cns_label, 620, 50); // Left of switch, 50px from top
+    lv_obj_set_pos(cns_label, 620, 50);
 
     lv_obj_t *mode_switch = lv_switch_create(main_screen);
-    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0x2E4E5C), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0x2E4E5C), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0x2E4E5C), LV_PART_INDICATOR | LV_STATE_CHECKED);
-    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_KNOB); // Switch knob green
+    lv_obj_set_style_bg_color(mode_switch, lv_color_hex(0xBCD24B), LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_size(mode_switch, 80, 30);
-    lv_obj_set_pos(mode_switch, 703, 53); // Center at x=700 (650 + 100/2), 50px from top
+    lv_obj_set_style_height(mode_switch, 30, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_height(mode_switch, 30, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_pad_all(mode_switch, 0, LV_PART_KNOB);
+    lv_obj_set_style_size(mode_switch, 30, LV_PART_KNOB | LV_STATE_DEFAULT);
+    lv_obj_set_pos(mode_switch, 703, 53);
 
     lv_obj_t *adp_label = lv_label_create(main_screen);
     lv_label_set_text(adp_label, "ADP");
     lv_obj_set_style_text_color(adp_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_text_font(adp_label, &lv_font_montserrat_30, LV_PART_MAIN);
-    lv_obj_set_pos(adp_label, 810, 50); // Right of switch, 50px from top
+    lv_obj_set_pos(adp_label, 810, 50);
 
     // KG Label (left side, above value)
     lv_obj_t *kg_label = lv_label_create(main_screen);
@@ -190,27 +188,40 @@ void app_main(void)
     lv_obj_set_style_text_font(kg_value_label, &lv_font_montserrat_72, LV_PART_MAIN);
     lv_obj_set_pos(kg_value_label, 200, 280);
 
-    // CNS Mode: Vertical Slider (0 to 30)
-    ESP_LOGI(TAG, "Adding KG slider");
-    lv_obj_t *kg_slider = lv_slider_create(main_screen);
-    lv_slider_set_range(kg_slider, 0, 30);
-    lv_obj_set_size(kg_slider, 20, 300);
-    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0x87A2AB), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_KNOB);
-    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_INDICATOR);
-    lv_obj_set_style_bg_opa(kg_slider, LV_OPA_COVER, LV_PART_INDICATOR);
+    // CNS Mode: Arc Slider (0 to 30)
+    ESP_LOGI(TAG, "Adding KG arc slider");
+    lv_obj_t *kg_slider = lv_arc_create(main_screen);
+    lv_arc_set_range(kg_slider, 0, 30);
+    lv_arc_set_value(kg_slider, 0);
+    lv_obj_set_size(kg_slider, 300, 300);
+    lv_obj_set_style_arc_width(kg_slider, 30, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_width(kg_slider, 30, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_color(kg_slider, lv_color_hex(0x2E4E5C), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_opa(kg_slider, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_opa(kg_slider, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(kg_slider, lv_color_hex(0xBCD24B), LV_PART_KNOB | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(kg_slider, LV_OPA_COVER, LV_PART_KNOB | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(kg_slider, 10, LV_PART_KNOB); // Reduced by 5px (10px total)
+    lv_arc_set_bg_angles(kg_slider, 135, 45);
     lv_obj_align(kg_slider, LV_ALIGN_CENTER, 0, 0);
 
     // Add the event callback here
     lv_obj_add_event_cb(kg_slider, kg_slider_event_cb, LV_EVENT_VALUE_CHANGED, kg_value_label);
 
-    // ADP Mode: Vertical Weight Indicator Bar (0 to 30)
-    lv_obj_t *weight_bar = lv_bar_create(main_screen);
-    lv_bar_set_range(weight_bar, 0, 30);
-    lv_bar_set_value(weight_bar, 15, LV_ANIM_OFF);
-    lv_obj_set_size(weight_bar, 20, 300);
-    lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0xBCD24B), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(weight_bar, lv_color_hex(0xBCD24B), LV_PART_INDICATOR);
+    // ADP Mode: Arc Progress Indicator (0 to 30)
+    lv_obj_t *weight_bar = lv_arc_create(main_screen);
+    lv_arc_set_range(weight_bar, 0, 30);
+    lv_arc_set_value(weight_bar, 15);
+    lv_obj_set_size(weight_bar, 300, 300);
+    lv_obj_set_style_arc_width(weight_bar, 30, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_width(weight_bar, 30, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_color(weight_bar, lv_color_hex(0x2E4E5C), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_opa(weight_bar, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_color(weight_bar, lv_color_hex(0xBCD24B), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_opa(weight_bar, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_remove_style(weight_bar, NULL, LV_PART_KNOB);
+    lv_arc_set_bg_angles(weight_bar, 135, 45);
     lv_obj_align(weight_bar, LV_ALIGN_BOTTOM_MID, 0, -100);
     lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
 
@@ -220,14 +231,14 @@ void app_main(void)
     lv_label_set_text(rep_label, "REPS");
     lv_obj_set_style_text_color(rep_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_text_font(rep_label, &lv_font_montserrat_72, LV_PART_MAIN);
-    lv_obj_set_pos(rep_label, 700, 200);
+    lv_obj_set_pos(rep_label, 750, 200);
 
     // Rep Value Label (below "REPS")
     lv_obj_t *rep_value_label = lv_label_create(main_screen);
     lv_label_set_text(rep_value_label, "0");
     lv_obj_set_style_text_color(rep_value_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_text_font(rep_value_label, &lv_font_montserrat_72, LV_PART_MAIN);
-    lv_obj_set_pos(rep_value_label, 700, 280);
+    lv_obj_set_pos(rep_value_label, 750, 280);
 
     // Link objects for mode switch callback
     kg_slider->user_data = kg_value_label;
@@ -264,7 +275,7 @@ void app_main(void)
                 int effort;
                 if (sscanf(rx_buf, "EFFORT:%d", &effort) == 1)
                 {
-                    lv_bar_set_value(weight_bar, effort, LV_ANIM_ON);
+                    lv_arc_set_value(weight_bar, effort);
                     char buf[8];
                     snprintf(buf, sizeof(buf), "%d", effort);
                     lv_label_set_text(kg_value_label, buf);
@@ -283,9 +294,4 @@ void display_init(void)
     ESP_LOGI(TAG, "Calling set_backlight_brightness");
     set_backlight_brightness(2);
     ESP_LOGI(TAG, "Display initialized");
-}
-
-void lvgl_init(void)
-{
-    ESP_LOGI(TAG, "LVGL initialized (via init_display)");
 }
