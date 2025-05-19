@@ -144,11 +144,12 @@ void app_main(void)
     lv_obj_t *main_screen = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(main_screen, lv_color_hex(0x223A44), LV_PART_MAIN);
 
-    // Helbur logo (100x17), at (50, 50)
+    // Helbur logo (100x17, scaled to ~176x30), at (50, 50)
     ESP_LOGI(TAG, "Adding small logo");
     lv_obj_t *small_logo = lv_img_create(main_screen);
     lv_img_set_src(small_logo, &helbur_small);
-    lv_obj_set_pos(small_logo, 50, 50);
+    lv_img_set_zoom(small_logo, 450); // ~176% scale (176/100 * 256)
+    lv_obj_set_pos(small_logo, 130, 50);
 
     // Toggle switch with "CNS" and "ADP" labels on either side
     lv_obj_t *cns_label = lv_label_create(main_screen);
@@ -179,14 +180,14 @@ void app_main(void)
     lv_label_set_text(kg_label, "KG");
     lv_obj_set_style_text_color(kg_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_text_font(kg_label, &lv_font_montserrat_72, LV_PART_MAIN);
-    lv_obj_set_pos(kg_label, 200, 200);
+    lv_obj_set_pos(kg_label, 200, 250);
 
     // KG Value Label (below "KG")
     lv_obj_t *kg_value_label = lv_label_create(main_screen);
     lv_label_set_text(kg_value_label, "0");
     lv_obj_set_style_text_color(kg_value_label, lv_color_hex(0xBCD24B), LV_PART_MAIN);
     lv_obj_set_style_text_font(kg_value_label, &lv_font_montserrat_72, LV_PART_MAIN);
-    lv_obj_set_pos(kg_value_label, 200, 280);
+    lv_obj_set_pos(kg_value_label, 200, 330);
 
     // CNS Mode: Arc Slider (0 to 30)
     ESP_LOGI(TAG, "Adding KG arc slider");
@@ -204,7 +205,7 @@ void app_main(void)
     lv_obj_set_style_bg_opa(kg_slider, LV_OPA_COVER, LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(kg_slider, 10, LV_PART_KNOB); // Reduced by 5px (10px total)
     lv_arc_set_bg_angles(kg_slider, 135, 45);
-    lv_obj_align(kg_slider, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(kg_slider, LV_ALIGN_CENTER, 0, 50);
 
     // Add the event callback here
     lv_obj_add_event_cb(kg_slider, kg_slider_event_cb, LV_EVENT_VALUE_CHANGED, kg_value_label);
@@ -222,7 +223,7 @@ void app_main(void)
     lv_obj_set_style_arc_opa(weight_bar, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_remove_style(weight_bar, NULL, LV_PART_KNOB);
     lv_arc_set_bg_angles(weight_bar, 135, 45);
-    lv_obj_align(weight_bar, LV_ALIGN_BOTTOM_MID, 0, -100);
+    lv_obj_align(weight_bar, LV_ALIGN_BOTTOM_MID, 0, -50);
     lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
 
     // Rep Counter Label (right side, aligned with "KG")
@@ -231,14 +232,14 @@ void app_main(void)
     lv_label_set_text(rep_label, "REPS");
     lv_obj_set_style_text_color(rep_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_text_font(rep_label, &lv_font_montserrat_72, LV_PART_MAIN);
-    lv_obj_set_pos(rep_label, 750, 200);
+    lv_obj_set_pos(rep_label, 750, 250);
 
     // Rep Value Label (below "REPS")
     lv_obj_t *rep_value_label = lv_label_create(main_screen);
     lv_label_set_text(rep_value_label, "0");
     lv_obj_set_style_text_color(rep_value_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_text_font(rep_value_label, &lv_font_montserrat_72, LV_PART_MAIN);
-    lv_obj_set_pos(rep_value_label, 750, 280);
+    lv_obj_set_pos(rep_value_label, 750, 330);
 
     // Link objects for mode switch callback
     kg_slider->user_data = kg_value_label;
