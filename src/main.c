@@ -109,8 +109,7 @@ void app_main(void)
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
-    };
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE};
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 20, 19, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE)); // TX: GPIO20, RX: GPIO19
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 256, 256, 0, NULL, 0));
@@ -225,7 +224,7 @@ void app_main(void)
     lv_obj_set_style_arc_opa(weight_bar, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_remove_style(weight_bar, NULL, LV_PART_KNOB);
     lv_arc_set_bg_angles(weight_bar, 135, 45);
-    lv_obj_align(weight_bar, LV_ALIGN_BOTTOM_MID, 0, -50);
+    lv_obj_align(weight_bar, LV_ALIGN_BOTTOM_MID, 0, -100);
     lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
 
     // Rep Counter Label (right side, aligned with "KG")
@@ -268,9 +267,11 @@ void app_main(void)
             int reps;
             if (sscanf(rx_buf, "REPS:%d", &reps) == 1)
             {
+                reps = (reps >= 0 && reps <= 99) ? reps : 0; // Constrain reps
                 char buf[8];
                 snprintf(buf, sizeof(buf), "%d", reps);
                 lv_label_set_text(rep_value_label, buf);
+                ESP_LOGI(TAG, "Rep count updated: %d", reps);
             }
             // Parse ADP effort (e.g., "EFFORT:25")
             if (lv_obj_has_state(mode_switch, LV_STATE_CHECKED))
@@ -278,10 +279,12 @@ void app_main(void)
                 int effort;
                 if (sscanf(rx_buf, "EFFORT:%d", &effort) == 1)
                 {
+                    effort = (effort >= 0 && effort <= 30) ? effort : 0; // Constrain effort (kg)
                     lv_arc_set_value(weight_bar, effort);
                     char buf[8];
                     snprintf(buf, sizeof(buf), "%d", effort);
                     lv_label_set_text(kg_value_label, buf);
+                    ESP_LOGI(TAG, "Effort updated: %d kg", effort);
                 }
             }
             xSemaphoreGiveRecursive(lvgl_mux);
