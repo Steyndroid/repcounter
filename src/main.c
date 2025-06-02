@@ -31,7 +31,8 @@ static void kg_slider_event_cb(lv_event_t *e)
     lv_obj_t *label = (lv_obj_t *)lv_event_get_user_data(e);
     int32_t value = lv_arc_get_value(slider);
     // Constrain value to 15–50 kg
-    value = (value < 15) ? 15 : (value > 50) ? 50 : value;
+    value = (value < 15) ? 15 : (value > 50) ? 50
+                                             : value;
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", (int)value);
     xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
@@ -269,7 +270,7 @@ void app_main(void)
     lv_obj_set_style_text_color(adp_name_label, lv_color_hex(0x87A2AB), LV_PART_MAIN);
     lv_obj_set_style_text_font(adp_name_label, &lv_font_montserrat_72, LV_PART_MAIN);
     lv_obj_align(adp_name_label, LV_ALIGN_BOTTOM_MID, 0, -50); // 50px from bottom
-    lv_obj_add_flag(adp_name_label, LV_OBJ_FLAG_HIDDEN); // Hidden initially (CNS mode)
+    lv_obj_add_flag(adp_name_label, LV_OBJ_FLAG_HIDDEN);       // Hidden initially (CNS mode)
 
     // Link objects for mode switch callback
     kg_slider->user_data = kg_value_label;
@@ -293,6 +294,7 @@ void app_main(void)
         if (len > 0)
         {
             rx_buf[len] = '\0';
+            ESP_LOGI(TAG, "Received UART data: %s", rx_buf); // Debug received data
             xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
             // Parse rep counts (e.g., "REPS:5")
             int reps;
@@ -311,11 +313,22 @@ void app_main(void)
                 if (sscanf(rx_buf, "EFFORT:%d", &effort) == 1)
                 {
                     effort = (effort >= 15 && effort <= 50) ? effort : 15;
-                    lv_arc_set_value(weight_bar, effort);
+                    // Map effort (15–50 kg) to arc range (0–100)
+                    int arc_value = (int)(((float)(effort - 15) / (50 - 15)) * 100);
+                    arc_value = (arc_value >= 0 && arc_value <= 100) ? arc_value : 0;
+                    lv_arc_set_value(weight_bar, arc_value);
+                    // Update kg_value_label with effort
                     char buf[8];
                     snprintf(buf, sizeof(buf), "%d", effort);
                     lv_label_set_text(kg_value_label, buf);
-                    ESP_LOGI(TAG, "Effort updated: %d kg", effort);
+                    // Force UI refresh
+                    lv_obj_invalidate(weight_bar);
+                    lv_obj_invalidate(kg_value_label);
+                    ESP_LOGI(TAG, "Effort updated: %d kg, arc_value: %d", effort, arc_value);
+                }
+                else
+                {
+                    ESP_LOGW(TAG, "Failed to parse EFFORT from: %s", rx_buf); // Debug parsing failure
                 }
             }
             xSemaphoreGiveRecursive(lvgl_mux);
