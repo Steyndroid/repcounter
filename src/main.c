@@ -128,6 +128,15 @@ void app_main(void)
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 20, 19, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 256, 256, 0, NULL, 0));
+    char init_buf[32];
+    snprintf(init_buf, sizeof(init_buf), "INIT\n");
+    for (int i = 0; i < 3; i++)
+    { // Send 3 times
+        uart_write_bytes(UART_NUM_1, init_buf, strlen(init_buf));
+        ESP_LOGI(TAG, "Sent INIT attempt %d", i + 1);
+        vTaskDelay(pdMS_TO_TICKS(100)); // 100ms delay between
+    }
+    ESP_LOGI(TAG, "Sent INIT to Arduino");
 
     display_init();
 
