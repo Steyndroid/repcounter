@@ -13,21 +13,19 @@
 #include "esp32_s3.h"
 
 // --- Choose your display ---
-//#include "sunton_7inch_800x480.h"
-//#include "matouch_7inch_800x480.h"
+// #include "sunton_7inch_800x480.h"
+// #include "matouch_7inch_800x480.h"
 #include "matouch_7inch_1024x600.h"
-
 
 // #define CONFIG_DOUBLE_FB 1
 
 #if CONFIG_DOUBLE_FB
-#define LCD_NUM_FB             2
+#define LCD_NUM_FB 2
 #else
-#define LCD_NUM_FB             1
+#define LCD_NUM_FB 1
 #endif
 
-
-static const char* TAG = "DISPLAY";
+static const char *TAG = "DISPLAY";
 
 static void touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data);
 static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map);
@@ -45,15 +43,14 @@ SemaphoreHandle_t sem_gui_ready;
  */
 void init_display(void)
 {
-    
-    esp_lcd_panel_handle_t lcd = NULL;           // LCD panel handle
-    esp_lcd_touch_handle_t tp = NULL;            // LCD touch panel handle
+
+    esp_lcd_panel_handle_t lcd = NULL; // LCD panel handle
+    esp_lcd_touch_handle_t tp = NULL;  // LCD touch panel handle
 
     init_backlight();
     init_touch(&tp);
     init_lcd(&lcd);
     init_lvgl(lcd, tp);
-
 }
 
 /**
@@ -61,14 +58,14 @@ void init_display(void)
  *
  * This function initializes the PWM timer and channel configurations for controlling the LCD backlight.
  */
-void init_backlight(void) {
+void init_backlight(void)
+{
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = PWM_RESOLUTION,
         .freq_hz = PWM_FREQ,
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .timer_num = LEDC_TIMER,
-        .clk_cfg = LEDC_AUTO_CLK
-    };
+        .clk_cfg = LEDC_AUTO_CLK};
     ledc_channel_config_t ledc_channel = {
         .channel = LEDC_CHANNEL,
         .duty = 0,
@@ -77,8 +74,7 @@ void init_backlight(void) {
         .gpio_num = LEDC_PIN_NUM_BK_LIGHT,
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .timer_sel = LEDC_TIMER,
-        .flags.output_invert = LEDC_OUTPUT_INVERT
-    };
+        .flags.output_invert = LEDC_OUTPUT_INVERT};
 
     ESP_LOGI(TAG, "Initializing LCD backlight");
     ledc_timer_config(&ledc_timer);
@@ -92,13 +88,13 @@ void init_backlight(void) {
  *
  * @param[in] brightness The brightness level to set (0-255).
  */
-void set_backlight_brightness(uint8_t brightness) {
+void set_backlight_brightness(uint8_t brightness)
+{
     ESP_LOGI(TAG, "Setting LCD backlight brightness to %d", brightness);
 
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, brightness);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
 }
-
 
 /**
  * @brief Initialize Touch Driver
@@ -108,18 +104,18 @@ void set_backlight_brightness(uint8_t brightness) {
  *
  * @param[out] touch_handle Pointer to the handle for the initialized touch controller.
  */
-void init_touch(esp_lcd_touch_handle_t *touch_handle) {
+void init_touch(esp_lcd_touch_handle_t *touch_handle)
+{
 
     ESP_LOGI(TAG, "Install Touch driver");
-    
+
     const i2c_config_t i2c_conf = {
         .mode = I2C_MODE_MASTER,
         .sda_io_num = I2C_SDA,
         .sda_pullup_en = GPIO_PULLUP_DISABLE,
         .scl_io_num = I2C_SCL,
         .scl_pullup_en = GPIO_PULLUP_DISABLE,
-        .master.clk_speed = I2C_CLK_SPEED_HZ
-    };
+        .master.clk_speed = I2C_CLK_SPEED_HZ};
     ESP_LOGI(TAG, "i2c_param_config");
     i2c_param_config(I2C_NUM, &i2c_conf);
     ESP_LOGI(TAG, "i2c_driver_install");
@@ -129,7 +125,7 @@ void init_touch(esp_lcd_touch_handle_t *touch_handle) {
     const esp_lcd_touch_config_t tp_cfg = {
         .x_max = LCD_H_RES,
         .y_max = LCD_V_RES,
-        .rst_gpio_num = I2C_RST, 
+        .rst_gpio_num = I2C_RST,
         .int_gpio_num = GPIO_NUM_NC,
         .levels = {
             .reset = 0,
@@ -137,8 +133,8 @@ void init_touch(esp_lcd_touch_handle_t *touch_handle) {
         },
         .flags = {
             .swap_xy = 0,
-            .mirror_x = 0,
-            .mirror_y = 0,
+            .mirror_x = 1, // Mirror X axis
+            .mirror_y = 1, // Mirror Y axis
         },
     };
     esp_lcd_panel_io_handle_t tp_io_handle = NULL;
@@ -151,7 +147,6 @@ void init_touch(esp_lcd_touch_handle_t *touch_handle) {
     esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, touch_handle);
 }
 
-
 /**
  * @brief Initialize RGB LCD Panel
  *
@@ -161,8 +156,9 @@ void init_touch(esp_lcd_touch_handle_t *touch_handle) {
  *
  * @param[out] panel_handle Pointer to the handle for the initialized RGB LCD panel.
  */
-void init_lcd(esp_lcd_panel_handle_t *panel_handle) {
-    
+void init_lcd(esp_lcd_panel_handle_t *panel_handle)
+{
+
     ESP_LOGI(TAG, "Install RGB LCD panel driver");
 
     sem_vsync_end = xSemaphoreCreateBinary();
@@ -218,10 +214,11 @@ void init_lcd(esp_lcd_panel_handle_t *panel_handle) {
     };
     esp_lcd_rgb_panel_register_event_callbacks(*panel_handle, &cbs, NULL);
 
-
     ESP_LOGI(TAG, "Initialize RGB LCD panel");
     esp_lcd_panel_reset(*panel_handle);
     esp_lcd_panel_init(*panel_handle);
+    ESP_LOGI(TAG, "Mirror X and Y axes for 180-degree rotation");
+    esp_lcd_panel_mirror(*panel_handle, true, true);
 }
 
 /**
@@ -234,7 +231,8 @@ void init_lcd(esp_lcd_panel_handle_t *panel_handle) {
  * @param[in] panel_handle Handle to the LCD panel associated with LVGL.
  * @param[in] touch_handle Handle to the touchpad device associated with LVGL.
  */
-void init_lvgl(esp_lcd_panel_handle_t panel_handle, esp_lcd_touch_handle_t touch_handle) {
+void init_lvgl(esp_lcd_panel_handle_t panel_handle, esp_lcd_touch_handle_t touch_handle)
+{
 
     ESP_LOGI(TAG, "Initialize LVGL library");
 
@@ -242,24 +240,23 @@ void init_lvgl(esp_lcd_panel_handle_t panel_handle, esp_lcd_touch_handle_t touch
 
     static lv_disp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
     static lv_disp_drv_t disp_drv;      // contains callback functions
-    
+
     lv_init();
 
     void *buf1 = NULL;
     void *buf2 = NULL;
 
-    #if CONFIG_DOUBLE_FB
-        ESP_LOGI(TAG, "Use frame buffers as LVGL draw buffers");
-        ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 2, &buf1, &buf2));
-        // initialize LVGL draw buffers
-        lv_disp_draw_buf_init(&disp_buf, buf1, buf2, LCD_H_RES * LCD_V_RES);
-    #else
-        ESP_LOGI(TAG, "Allocate separate LVGL draw buffers from PSRAM");
-        buf1 = heap_caps_malloc(LCD_H_RES * 10 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-        // initialize LVGL draw buffers
-        lv_disp_draw_buf_init(&disp_buf, buf1, buf2, LCD_H_RES * 10);
-    #endif 
-
+#if CONFIG_DOUBLE_FB
+    ESP_LOGI(TAG, "Use frame buffers as LVGL draw buffers");
+    ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 2, &buf1, &buf2));
+    // initialize LVGL draw buffers
+    lv_disp_draw_buf_init(&disp_buf, buf1, buf2, LCD_H_RES * LCD_V_RES);
+#else
+    ESP_LOGI(TAG, "Allocate separate LVGL draw buffers from PSRAM");
+    buf1 = heap_caps_malloc(LCD_H_RES * 10 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    // initialize LVGL draw buffers
+    lv_disp_draw_buf_init(&disp_buf, buf1, buf2, LCD_H_RES * 10);
+#endif
 
     ESP_LOGI(TAG, "Register display driver to LVGL");
     lv_disp_drv_init(&disp_drv);
@@ -268,9 +265,9 @@ void init_lvgl(esp_lcd_panel_handle_t panel_handle, esp_lcd_touch_handle_t touch
     disp_drv.flush_cb = lvgl_flush_cb;
     disp_drv.draw_buf = &disp_buf;
     disp_drv.user_data = panel_handle;
-    #if CONFIG_DOUBLE_FB
-        disp_drv.full_refresh = true; // the full_refresh mode can maintain the synchronization between the two frame buffers
-    #endif
+#if CONFIG_DOUBLE_FB
+    disp_drv.full_refresh = true; // the full_refresh mode can maintain the synchronization between the two frame buffers
+#endif
     lv_disp_drv_register(&disp_drv);
 
     ESP_LOGI(TAG, "Register input device driver to LVGL");
@@ -308,13 +305,14 @@ static void touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 
     esp_lcd_touch_read_data(touch_handle);
     bool touchpad_pressed = esp_lcd_touch_get_coordinates(touch_handle, &touchpad_x, &touchpad_y, &touch_strength, &touch_cnt, 1);
-    if (touchpad_pressed) {
-        //ESP_LOGI(TAG, "Touchpad_read %d %d", touchpad_x, touchpad_y);
+    if (touchpad_pressed)
+    {
+        // ESP_LOGI(TAG, "Touchpad_read %d %d", touchpad_x, touchpad_y);
         data->state = LV_INDEV_STATE_PR;
 
         /*Set the coordinates*/
         data->point.x = touchpad_x;
-        data->point.y = touchpad_y - 50;  // Adjust for vertical offset
+        data->point.y = touchpad_y + 150; // Adjust upward by 150px
     }
 }
 
@@ -330,7 +328,7 @@ static void touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
  */
 static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
-    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t) drv->user_data;
+    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
 
     int offsetx1 = area->x1;
     int offsetx2 = area->x2;
@@ -339,7 +337,7 @@ static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t 
 
     // LVGL has finished
     xSemaphoreGive(sem_gui_ready);
-    // Now wait for the VSYNC event. 
+    // Now wait for the VSYNC event.
     xSemaphoreTake(sem_vsync_end, portMAX_DELAY);
 
     // pass the draw buffer to the driver
@@ -366,8 +364,9 @@ static bool on_vsync_event(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel
 {
     BaseType_t high_task_awoken = pdFALSE;
 
-    // Wait until LVGL has finished 
-    if (xSemaphoreTakeFromISR(sem_gui_ready, &high_task_awoken) == pdTRUE) {
+    // Wait until LVGL has finished
+    if (xSemaphoreTakeFromISR(sem_gui_ready, &high_task_awoken) == pdTRUE)
+    {
         // Indicate that the VSYNC event has ended, and it's safe to proceed with flushing the buffer.
         xSemaphoreGiveFromISR(sem_vsync_end, &high_task_awoken);
     }
@@ -387,7 +386,8 @@ static void lvgl_port_task(void *arg)
 {
     ESP_LOGI(TAG, "Starting LVGL task");
 
-    while (1) {
+    while (1)
+    {
 
         xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
         lv_timer_handler();

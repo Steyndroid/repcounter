@@ -112,6 +112,17 @@ void mode_switch_event_cb(lv_event_t *e)
     xSemaphoreGiveRecursive(lvgl_mux);
 }
 
+// Timer callback to hide splash logo
+static void hide_splash_logo_cb(lv_timer_t *timer)
+{
+    lv_obj_t *splash_img = (lv_obj_t *)timer->user_data;
+    xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
+    lv_obj_add_flag(splash_img, LV_OBJ_FLAG_HIDDEN);
+    ESP_LOGI(TAG, "Hid splash logo");
+    xSemaphoreGiveRecursive(lvgl_mux);
+    lv_timer_del(timer); // One-shot timer
+}
+
 void app_main(void)
 {
     printf("Starting app_main\n");
@@ -159,7 +170,9 @@ void app_main(void)
     lv_scr_load(splash_screen);
     ESP_LOGI(TAG, "Splash screen loaded");
     xSemaphoreGiveRecursive(lvgl_mux);
-
+    // Start timer to hide logo at 2s
+    ESP_LOGI(TAG, "Starting timer to hide splash logo");
+    lv_timer_create(hide_splash_logo_cb, 2000, splash_img); // 2s delay
     ESP_LOGI(TAG, "Delaying for 3 seconds");
     vTaskDelay(pdMS_TO_TICKS(3000));
     ESP_LOGI(TAG, "Delay complete");
@@ -248,8 +261,9 @@ void app_main(void)
     lv_obj_set_style_arc_opa(weight_bar, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_remove_style(weight_bar, NULL, LV_PART_KNOB);
     lv_arc_set_bg_angles(weight_bar, 135, 45);
-    lv_obj_align(weight_bar, LV_ALIGN_BOTTOM_MID, 0, -150); // Moved 50px up
+    lv_obj_align(weight_bar, LV_ALIGN_BOTTOM_MID, 0, -150);
     lv_obj_add_flag(weight_bar, LV_OBJ_FLAG_HIDDEN);
+    ESP_LOGI(TAG, "Weight bar initialized, range 15-50 kg");
 
     // Rep Counter Label (right side, aligned with "KG")
     ESP_LOGI(TAG, "Adding rep counter");
@@ -303,42 +317,29 @@ void app_main(void)
         if (len > 0)
         {
             rx_buf[len] = '\0';
-            ESP_LOGI(TAG, "Received UART data: %s", rx_buf); // Debug received data
             xSemaphoreTakeRecursive(lvgl_mux, portMAX_DELAY);
-            // Parse rep counts (e.g., "REPS:5")
-            int reps;
-            if (sscanf(rx_buf, "REPS:%d", &reps) == 1)
+            int value;
+            if (sscanf(rx_buf, "REPS:%d", &value) == 1 && value >= 0 && value <= 99)
             {
-                reps = (reps >= 0 && reps <= 99) ? reps : 0;
                 char buf[8];
-                snprintf(buf, sizeof(buf), "%d", reps);
+                snprintf(buf, sizeof(buf), "%d", value);
                 lv_label_set_text(rep_value_label, buf);
-                ESP_LOGI(TAG, "Rep count updated: %d", reps);
+                ESP_LOGI(TAG, "Rep count updated: %d", value);
             }
-            // Parse ADP effort (e.g., "EFFORT:25")
-            if (lv_obj_has_state(mode_switch, LV_STATE_CHECKED))
+            else if (sscanf(rx_buf, "EFFORT:%d", &value) == 1 && value >= 15 && value <= 50)
             {
-                int effort;
-                if (sscanf(rx_buf, "EFFORT:%d", &effort) == 1)
+                if (lv_obj_has_state(mode_switch, LV_STATE_CHECKED))
                 {
-                    effort = (effort >= 15 && effort <= 50) ? effort : 15;
-                    // Map effort (15–50 kg) to arc range (0–100)
-                    int arc_value = (int)(((float)(effort - 15) / (50 - 15)) * 100);
-                    arc_value = (arc_value >= 0 && arc_value <= 100) ? arc_value : 0;
-                    lv_arc_set_value(weight_bar, arc_value);
-                    // Update kg_value_label with effort
+                    lv_arc_set_value(weight_bar, value);
                     char buf[8];
-                    snprintf(buf, sizeof(buf), "%d", effort);
+                    snprintf(buf, sizeof(buf), "%d", value);
                     lv_label_set_text(kg_value_label, buf);
-                    // Force UI refresh
-                    lv_obj_invalidate(weight_bar);
-                    lv_obj_invalidate(kg_value_label);
-                    ESP_LOGI(TAG, "Effort updated: %d kg, arc_value: %d", effort, arc_value);
+                    ESP_LOGI(TAG, "Effort updated: %d kg, arc set to %d", value, lv_arc_get_value(weight_bar));
                 }
-                else
-                {
-                    ESP_LOGW(TAG, "Failed to parse EFFORT from: %s", rx_buf); // Debug parsing failure
-                }
+            }
+            else
+            {
+                ESP_LOGW(TAG, "Malformed UART data: %s", rx_buf);
             }
             xSemaphoreGiveRecursive(lvgl_mux);
         }
